@@ -6,17 +6,6 @@ import time
 import os
 import logging
 import gspread
-from config import (
-    REDDIT_USERNAME,
-    REDDIT_PASSWORD,
-    REDDIT_CLIENT_ID,
-    REDDIT_CLIENT_SECRET,
-    REDDIT_USER_AGENT,
-    TARGET_SUBREDDIT,
-    TARGET_STRING,
-    REPLY_MESSAGE,
-    SLEEP_DURATION,
-)
 
 # Configuring logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -31,9 +20,25 @@ spreadsheet = gc.open_by_url("https://docs.google.com/spreadsheets/d/MYSHEET")
 # Select the specific worksheet (e.g., the first sheet)
 configWorksheet = spreadsheet.get_worksheet(0) # Index 0 for the first sheet
 
-# Access a column by index (e.g., the first column, index 1)
-# Note: column indexing in gspread is 1-based for get_column
-# column_values = configWorksheet.col_values(1)
+# set configs
+cell = worksheet.find("REDDIT_USERNAME")
+REDDIT_USERNAME = configWorksheet.at(cell.row,1)
+cell = worksheet.find("REDDIT_PASSWORD")
+REDDIT_PASSWORD = configWorksheet.at(cell.row,1)
+cell = worksheet.find("REDDIT_CLIENT_ID")
+REDDIT_CLIENT_ID = configWorksheet.at(cell.row,1)
+cell = worksheet.find("REDDIT_CLIENT_SECRET")
+REDDIT_CLIENT_SECRET = configWorksheet.at(cell.row,1)
+cell = worksheet.find("REDDIT_USER_AGENT")
+REDDIT_USER_AGENT = configWorksheet.at(cell.row,1)
+cell = worksheet.find("TARGET_SUBREDDIT")
+TARGET_SUBREDDIT = configWorksheet.at(cell.row,1)
+cell = worksheet.find("TARGET_STRING")
+TARGET_STRING = configWorksheet.at(cell.row,1)
+cell = worksheet.find("REPLY_MESSAGE")
+REPLY_MESSAGE = configWorksheet.at(cell.row,1)
+cell = worksheet.find("SLEEP_DURATION")
+SLEEP_DURATION = configWorksheet.at(cell.row,1)
 
 # Function to handle rate limit with exponential backoff
 def handle_rate_limit(api_exception, retry_attempts=3):
