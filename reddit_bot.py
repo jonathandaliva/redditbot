@@ -18,27 +18,28 @@ gc = gspread.service_account(filename='path/to/your/auth.json')
 spreadsheet = gc.open_by_url("https://docs.google.com/spreadsheets/d/MYSHEET")
 
 # Select the specific worksheet (e.g., the first sheet)
-configWorksheet = spreadsheet.get_worksheet(0) # Index 0 for the first sheet
+configWorksheet = spreadsheet.get_worksheet("Config") # Index 0 for the first sheet
+postsWorksheet = spreadsheet.get_worksheet("PostIDs")
 
 # set configs
 cell = configWorksheet.find("REDDIT_USERNAME")
-REDDIT_USERNAME = configWorksheet.at(cell.row,1)
+REDDIT_USERNAME = configWorksheet.cell(cell.row,2).value
 cell = configWorksheet.find("REDDIT_PASSWORD")
-REDDIT_PASSWORD = configWorksheet.at(cell.row,1)
+REDDIT_PASSWORD = configWorksheet.cell(cell.row,2).value
 cell = configWorksheet.find("REDDIT_CLIENT_ID")
-REDDIT_CLIENT_ID = configWorksheet.at(cell.row,1)
+REDDIT_CLIENT_ID = configWorksheet.cell(cell.row,2).value
 cell = configWorksheet.find("REDDIT_CLIENT_SECRET")
-REDDIT_CLIENT_SECRET = configWorksheet.at(cell.row,1)
+REDDIT_CLIENT_SECRET = configWorksheet.cell(cell.row,2).value
 cell = configWorksheet.find("REDDIT_USER_AGENT")
-REDDIT_USER_AGENT = configWorksheet.at(cell.row,1)
+REDDIT_USER_AGENT = configWorksheet.cell(cell.row,2).value
 cell = configWorksheet.find("TARGET_SUBREDDIT")
-TARGET_SUBREDDIT = configWorksheet.at(cell.row,1)
+TARGET_SUBREDDIT = configWorksheet.cell(cell.row,2).value
 cell = configWorksheet.find("SEARCH_STRING")
-SEARCH_STRING = configWorksheet.at(cell.row,1)
+SEARCH_STRING = configWorksheet.cell(cell.row,2).value
 cell = configWorksheet.find("REPLY_MESSAGE")
-REPLY_MESSAGE = configWorksheet.at(cell.row,1)
+REPLY_MESSAGE = configWorksheet.cell(cell.row,2).value
 cell = configWorksheet.find("SLEEP_DURATION")
-SLEEP_DURATION = configWorksheet.at(cell.row,1)
+SLEEP_DURATION = configWorksheet.cell(cell.row,2).value
 logger.info("Config set from GSpread...")
 
 # Function to handle rate limit with exponential backoff
@@ -94,7 +95,7 @@ def run_bot(reddit_instance, comments_replied_to):
     time.sleep(int(SLEEP_DURATION))
 
 # Function to process posts for today
-def process_posts(subreddit_instance, comments_replied_to):
+def process_posts(subreddit_instance, posts_replied_to):
     
     for post in subreddit_instance.search(SEARCH_STRING,"new","lucene","day"):
         try:
@@ -107,28 +108,26 @@ def process_posts(subreddit_instance, comments_replied_to):
     # Log when the search is completed
     logger.info("Search Completed.")
     # Log the count of comments replied to
-    logger.info(f"Number of comments replied to: {len(comments_replied_to)}")
+    logger.info(f"Number of posts replied to: {len(posts_replied_to)}")
 
 # Function to process a single comment
-def process_single_post(post, comments_replied_to):
+def process_single_post(post, posts_replied_to):
     # Verify we haven't commented on this post already
-    if (post.id not in comments_replied_to
+    if (post.id not in posts_replied_to
         and post.author != reddit_instance.user.me()
     ):
         # Log when the target string is found in a comment
         logger.info(f"Found post {post.id}.")
         # Reply to the comment with the predefined message
         try:
-            comment.reply(REPLY_MESSAGE)
+            #Build reply message
+            #post.reply(REPLY_MESSAGE)
             # Log that the bot has replied to the comment
             logger.info(f"Replied to comment {comment.id}")
-
             # Add the comment ID to the list of comments replied to
-            comments_replied_to.append(comment.id)
-
+            posts_replied_to.append(comment.id)
             # Save the comment ID to the file
-            with open("comments_replied_to.txt", "a") as f:
-                f.write(comment.id + "\n")
+            postsWorksheet.append_row([comment.id])        
         except prawcore.exceptions.Forbidden as forbidden_error:
             logger.warning(f"Permission error for comment {comment.id}: {forbidden_error}. Skipping.")
         except Exception as reply_error:
@@ -136,32 +135,20 @@ def process_single_post(post, comments_replied_to):
      else:
          logger.info(f"Post {post.id} already replied to.")
 
-# Function to get saved comments
-def get_saved_comments():
-    if not os.path.isfile("comments_replied_to.txt"):
-        # If the file doesn't exist, initialize an empty list
-        comments_replied_to = []
-    else:
-        # Read the file and create a list of comments (excluding empty lines)
-        with open("comments_replied_to.txt", "r") as f:
-            comments_replied_to = [comment.strip() for comment in f.readlines() if comment.strip()]
-
-    return comments_replied_to
-
 # Main block to execute the bot
 if __name__ == "__main__":
     # Log in to Reddit
     reddit_instance = bot_login()
     # Get the list of comments the bot has replied to from the file
-    comments_replied_to = get_saved_comments()
+    posts_replied_to = [item for item in postsWorksheet.col_values(1) if item]
     # Log the number of comments replied to
-    logger.info(f"Number of comments replied to: {len(comments_replied_to)}")
+    logger.info(f"Number of posts replied to: {len(posts_replied_to)}")
 
     # Run the bot in an infinite loop
     while True:
         try:
             # Attempt to run the bot
-            run_bot(reddit_instance, comments_replied_to)
+            run_bot(reddit_instance, posts_replied_to)
         except Exception as e:
             # Log any general exceptions and sleep for the specified duration
             logger.exception(f"An error occurred: {e}")
