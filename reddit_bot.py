@@ -33,12 +33,13 @@ cell = configWorksheet.find("REDDIT_USER_AGENT")
 REDDIT_USER_AGENT = configWorksheet.at(cell.row,1)
 cell = configWorksheet.find("TARGET_SUBREDDIT")
 TARGET_SUBREDDIT = configWorksheet.at(cell.row,1)
-cell = configWorksheet.find("TARGET_STRING")
-TARGET_STRING = configWorksheet.at(cell.row,1)
+cell = configWorksheet.find("SEARCH_STRING")
+SEARCH_STRING = configWorksheet.at(cell.row,1)
 cell = configWorksheet.find("REPLY_MESSAGE")
 REPLY_MESSAGE = configWorksheet.at(cell.row,1)
 cell = configWorksheet.find("SLEEP_DURATION")
 SLEEP_DURATION = configWorksheet.at(cell.row,1)
+logger.info("Config set from GSpread...")
 
 # Function to handle rate limit with exponential backoff
 def handle_rate_limit(api_exception, retry_attempts=3):
@@ -77,10 +78,11 @@ def bot_login():
 
 # Function to run the bot
 def run_bot(reddit_instance, comments_replied_to):
-    logger.info(f"Searching last 1,000 comments in subreddit {TARGET_SUBREDDIT}")
+    logger.info(f"Searching today's posts in subreddit {TARGET_SUBREDDIT}")
 
     try:
-        process_comments(reddit_instance, comments_replied_to)
+        eBikes = reddit_instance.subreddit(TARGET_SUBREDDIT)
+        process_posts(eBikes, comments_replied_to)
     except praw.exceptions.APIException as api_exception:
         # Handle rate limits
         handle_rate_limit(api_exception)
@@ -91,11 +93,12 @@ def run_bot(reddit_instance, comments_replied_to):
     logger.info(f"Sleeping for {SLEEP_DURATION} seconds...")
     time.sleep(int(SLEEP_DURATION))
 
-# Function to process comments
-def process_comments(reddit_instance, comments_replied_to):
-    for comment in reddit_instance.subreddit(TARGET_SUBREDDIT).comments(limit=1000):
+# Function to process posts for today
+def process_posts(subreddit_instance, comments_replied_to):
+    
+    for post in subreddit_instance.search(SEARCH_STRING,"new","lucene","day"):
         try:
-            process_single_comment(comment, comments_replied_to)
+            process_single_post(post, comments_replied_to)
         except prawcore.exceptions.Forbidden as forbidden_error:
             logger.warning(f"Permission error for comment {comment.id}: {forbidden_error}. Skipping.")
         except Exception as error:
@@ -107,14 +110,13 @@ def process_comments(reddit_instance, comments_replied_to):
     logger.info(f"Number of comments replied to: {len(comments_replied_to)}")
 
 # Function to process a single comment
-def process_single_comment(comment, comments_replied_to):
-    if (
-        TARGET_STRING in comment.body
-        and comment.id not in comments_replied_to
-        and comment.author != reddit_instance.user.me()
+def process_single_post(post, comments_replied_to):
+    # Verify we haven't commented on this post already
+    if (post.id not in comments_replied_to
+        and post.author != reddit_instance.user.me()
     ):
         # Log when the target string is found in a comment
-        logger.info(f"String with '{TARGET_STRING}' found in comment {comment.id}")
+        logger.info(f"Found post {post.id}.")
         # Reply to the comment with the predefined message
         try:
             comment.reply(REPLY_MESSAGE)
@@ -131,6 +133,8 @@ def process_single_comment(comment, comments_replied_to):
             logger.warning(f"Permission error for comment {comment.id}: {forbidden_error}. Skipping.")
         except Exception as reply_error:
             logger.exception(f"Error while replying to comment {comment.id}: {reply_error}")
+     else:
+         logger.info(f"Post {post.id} already replied to.")
 
 # Function to get saved comments
 def get_saved_comments():
